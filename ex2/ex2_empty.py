@@ -208,7 +208,13 @@ def compute_bounding_box(homography, w, h):
     :return: 2x2 array, where the first row is [x,y] of the top left corner,
      and the second row is the [x,y] of the bottom right corner
     """
-    pass
+    corners = np.array([[0, 0],[w-1, 0],[0, h-1],[w-1, h-1]], dtype=float)
+    transformed = apply_homography(corners, homography)
+
+    min_xy = np.min(transformed, axis=0)  #[min_x, min_y]
+    max_xy = np.max(transformed, axis=0)  #[max_x, max_y]
+
+    return np.vstack([min_xy, max_xy])
 
 def warp_channel(image, homography):
     """
@@ -217,7 +223,22 @@ def warp_channel(image, homography):
     :param homography: homograhpy.
     :return: A 2d warped image.
     """
-    pass
+    h, w = image.shape
+    (min_x, min_y), (max_x, max_y) = compute_bounding_box(homography, w, h)
+    x = np.arange(np.floor(min_x), np.ceil(max_x)+1)
+    y = np.arange(np.floor(min_y), np.ceil(max_y)+1)
+    X, Y = np.meshgrid(x,y)
+
+    H_inv = np.linalg.inv(homography)
+    flattened = np.stack([X.ravel(), Y.ravel()], axis=1)
+    src_points = apply_homography(flattened, H_inv)
+    
+    Xsrc = src_points[:, 0].reshape(X.shape)
+    Ysrc = src_points[:, 1].reshape(Y.shape)
+    vals = map_coordinates(image, [Ysrc.ravel(), Xsrc.ravel()],
+        order=1, mode='constant',cval=0.0)
+    warped = vals.reshape(X.shape)
+    return warped
 
 def warp_image(image, homography):
     """
@@ -226,8 +247,12 @@ def warp_image(image, homography):
     :param homography: homograhpy.
     :return: A warped image.
     """
-    pass
-
+    warped_channels = []
+    for c in range(3):
+        warped_c = warp_channel(image[:, :, c], homography)
+        warped_channels.append(warped_c)
+    warped_image = np.stack(warped_channels, axis=2)
+    return warped_image
 
 
 ##################################################################################################
