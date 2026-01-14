@@ -185,10 +185,8 @@ def display_matches(im1, im2, points1, points2, inliers):
     x1, y1 = points1[:, 0], points1[:, 1]
     x2, y2 = points2[:, 0] + width_im1, points2[:, 1]
     for i in range(len(points1)):
-        # color = 'b' if i in inliers else 'y'
-        # plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color=color, lw=0.6, alpha=0.5)
-        if i in inliers:
-            plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color='b', lw=0.6, alpha=0.5)
+        color = 'b' if i in inliers else 'y'
+        plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color=color, lw=0.6, alpha=0.5)
     plt.scatter(x1, y1, c='r', s=5)
     plt.scatter(x2, y2, c='r', s=5)
     plt.axis('off') 
@@ -208,7 +206,16 @@ def accumulate_homographies(H_successive, m):
     :return: A list of M 3x3 homography matrices,
       where H2m[i] transforms points from coordinate system i to coordinate system m
     """
-    pass
+    H2m = [None] * (len(H_successive) + 1)
+    H2m[m] = np.eye(3)
+    for i in range(m - 1, -1, -1):
+        curr_mat = H_successive[i] @ H2m[i+1]
+        H2m[i] = curr_mat / curr_mat[2, 2]
+    for i in range(m + 1, len(H_successive) + 1):
+        h_inv = np.linalg.inv(H_successive[i-1])
+        curr_mat = h_inv @ H2m[i-1]
+        H2m[i] = curr_mat / curr_mat[2, 2]
+    return H2m
 
 
 def compute_bounding_box(homography, w, h):
@@ -414,6 +421,6 @@ if __name__ == "__main__":
     display_matches(image1, image2, matched_points1, matched_points2, inliers)
 
     # Generate panoramic images
-    #print("\nGenerating panoramic images...")
-    #generate_panoramic_images(f"dump/{video_name_base}/", video_name_base,
-    #                          num_images=num_images, out_dir=f"out/{video_name_base}", number_of_panoramas=3)
+    print("\nGenerating panoramic images...")
+    generate_panoramic_images(f"dump/{video_name_base}/", video_name_base,
+                              num_images=num_images, out_dir=f"out/{video_name_base}", number_of_panoramas=3)
