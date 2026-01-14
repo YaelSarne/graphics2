@@ -43,7 +43,6 @@ def harris_corner_detector(im):
     bool_image_max = non_maximum_suppression(R_image)
     ys, xs = np.nonzero(bool_image_max)
     points = np.stack([xs, ys], axis=1)
-    visualize_points(im, points)
     return points
 
 
@@ -97,7 +96,7 @@ def match_features(desc1, desc2, min_score):
                 1) An array with shape (M,) and dtype int of matching indices in desc1.
                 2) An array with shape (M,) and dtype int of matching indices in desc2.
     """
-    d1_flat = desc1.reshape(desc1.shape[0], -1)
+    d1_flat = np.array(desc1.reshape(desc1.shape[0], -1))
     d2_flat = desc2.reshape(desc2.shape[0], -1)
     S = np.dot(d1_flat, d2_flat.T)
     top2_for1 = np.argpartition(S, -2, axis=1)[:, -2:]
@@ -162,14 +161,6 @@ def ransac_homography(points1, points2, num_iter, inlier_tol, translation_only=F
         best_H = best_H / best_H[2,2]
     
     return [best_H, best_inliers]
-        
-
-
-        
-
-
-
-    pass
 
 def display_matches(im1, im2, points1, points2, inliers):
     """
@@ -359,10 +350,6 @@ if __name__ == "__main__":
     image1 = read_image(f"dump/{video_name_base}/{video_name_base}200.jpg", 1)
     image2 = read_image(f"dump/{video_name_base}/{video_name_base}300.jpg", 1)
 
-    harris_corner_detector(image1)
-    #points = spread_out_corners(image1, 7,7,12, harris_corner_detector)
-    #visualize_points(image1, points)
-"""
     # Extract feature points and descriptors
     points1, desc1 = find_features(image1)
     points2, desc2 = find_features(image2)
@@ -393,5 +380,3 @@ if __name__ == "__main__":
     #print("\nGenerating panoramic images...")
     #generate_panoramic_images(f"dump/{video_name_base}/", video_name_base,
     #                          num_images=num_images, out_dir=f"out/{video_name_base}", number_of_panoramas=3)
-
-"""
