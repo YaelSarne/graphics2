@@ -6,6 +6,7 @@ from scipy.ndimage import map_coordinates
 
 from utils import *
 import numpy as np
+import random
 
 
 def harris_corner_detector(im):
@@ -85,6 +86,7 @@ def apply_homography(pos1, H12):
     :param H12: A 3x3 homography matrix.
     :return: An array with the same shape as pos1 with [x,y] point coordinates obtained from transforming pos1 using H12.
     """
+    
     pass
 
 def ransac_homography(points1, points2, num_iter, inlier_tol, translation_only=False):
@@ -100,7 +102,42 @@ def ransac_homography(points1, points2, num_iter, inlier_tol, translation_only=F
                 2) An Array with shape (S,) where S is the number of inliers,
                     containing the indices in pos1/pos2 of the maximal set of inlier matches found.
     """
+    N = points1.shape[0]
+    best_inliers = np.array([], dtype=int)
+    best_H = None
+
+    for iter in num_iter:
+        i, j = random.sample(range(N), 2)
+
+        P1 = points1[[i, j], :]
+        P2 = points2[[i, j], :]
+
+        H12 = estimate_rigid_transform(P1, P2, translation_only=translation_only)
+        p1_transformed = apply_homography(points1, H12)
+
+        d2 = np.sum((p1_transformed - points2) ** 2, axis=1)
+        inliers = np.where(d2 < inlier_tol)[0]
+        if inliers.size > best_inliers.size:
+            best_inliers = inliers
+            best_H = H12
+
+    if best_H is None:
+        best_H = np.eye(3)
+
+    if best_inliers.size >= 2:
+        best_H = estimate_rigid_transform(points1[best_inliers], points2[best_inliers])
+        
+    if best_H[2,2] !=0:
+        best_H = best_H / best_H[2,2]
     
+    return [best_H, best_inliers]
+        
+
+
+        
+
+
+
     pass
 
 def display_matches(im1, im2, points1, points2, inliers):
