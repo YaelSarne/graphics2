@@ -96,15 +96,17 @@ def match_features(desc1, desc2, min_score):
                 1) An array with shape (M,) and dtype int of matching indices in desc1.
                 2) An array with shape (M,) and dtype int of matching indices in desc2.
     """
-    d1_flat = np.array(desc1.reshape(desc1.shape[0], -1))
-    d2_flat = desc2.reshape(desc2.shape[0], -1)
+    desc1 = np.array(desc1)
+    desc2 = np.array(desc2)
+    d1_flat = desc1.reshape(desc1.shape[0], -1)
+    d2_flat =  desc2.reshape(desc2.shape[0], -1)
     S = np.dot(d1_flat, d2_flat.T)
     top2_for1 = np.argpartition(S, -2, axis=1)[:, -2:]
     top2_for2 = np.argpartition(S, -2, axis=0)[-2:, :]
     desc1_mask = np.zeros_like(S, dtype=bool)
     desc1_mask[np.arange(len(desc1))[:, None], top2_for1] = True
     desc2_mask = np.zeros_like(S, dtype=bool)
-    desc2_mask[np.arange(len(desc2))[:, None], top2_for2] = True
+    desc2_mask[top2_for2.T, np.arange(len(desc2))[:, None], ] = True
     score_mask = S > min_score
     final_mask = desc1_mask & desc2_mask & score_mask
     idx1, idx2 = np.where(final_mask)
@@ -117,7 +119,13 @@ def apply_homography(pos1, H12):
     :param H12: A 3x3 homography matrix.
     :return: An array with the same shape as pos1 with [x,y] point coordinates obtained from transforming pos1 using H12.
     """
-    pass
+    ones = np.ones((pos1.shape[0], 1))
+    pos_homo = np.hstack([pos1, ones])
+    res_homo = pos_homo @ H12.T
+    x_final = res_homo[:, 0] / res_homo[:, 2]
+    y_final = res_homo[:, 1] / res_homo[:, 2]
+    pos_2d = np.column_stack([x_final, y_final])
+    return pos_2d
 
 def ransac_homography(points1, points2, num_iter, inlier_tol, translation_only=False):
     """
@@ -136,7 +144,7 @@ def ransac_homography(points1, points2, num_iter, inlier_tol, translation_only=F
     best_inliers = np.array([], dtype=int)
     best_H = None
 
-    for iter in num_iter:
+    for iter in range(num_iter):
         i, j = random.sample(range(N), 2)
 
         P1 = points1[[i, j], :]
@@ -177,12 +185,16 @@ def display_matches(im1, im2, points1, points2, inliers):
     x1, y1 = points1[:, 0], points1[:, 1]
     x2, y2 = points2[:, 0] + width_im1, points2[:, 1]
     for i in range(len(points1)):
-        color = 'b' if i in inliers else 'y'
-        plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color=color, lw=0.6, alpha=0.5)
+        # color = 'b' if i in inliers else 'y'
+        # plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color=color, lw=0.6, alpha=0.5)
+        if i in inliers:
+            plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color='b', lw=0.6, alpha=0.5)
     plt.scatter(x1, y1, c='r', s=5)
     plt.scatter(x2, y2, c='r', s=5)
     plt.axis('off') 
     plt.show()
+    #plt.savefig('matches_result.png') 
+    #print("Result saved as matches_result.png")
 
 
 def accumulate_homographies(H_successive, m):
