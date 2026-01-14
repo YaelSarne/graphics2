@@ -22,7 +22,22 @@ def feature_descriptor(im, points, desc_rad=3):
     :param desc_rad: "Radius" of descriptors to compute.
     :return: An array of 2D patches, each patch i representing the descriptor of point i.
     """
-    pass
+    patches = []
+    axis = np.arange(-desc_rad, desc_rad + 1)
+    dx, dy = np.meshgrid(axis, axis)
+    for point in points:
+        x_cords = dx + point[0]
+        y_cords = dy + point[1]
+        curr_patch = map_coordinates(im, [y_cords.ravel(), x_cords.ravel()])
+        mean = np.mean(curr_patch)
+        curr_patch = curr_patch - mean
+        norm = np.linalg.norm(curr_patch)
+        if norm:
+            curr_patch = curr_patch / norm
+        curr_patch = np.reshape(curr_patch, (7, 7))
+        patches.append(curr_patch)
+    return patches
+
 
 def find_features(im):
     """
@@ -33,7 +48,11 @@ def find_features(im):
                 These coordinates are provided at the original image level.
             2) A feature descriptor array with shape (N,K,K)
     """
-    pass
+    pyramid = build_gaussian_pyramid(im, 3, 3)
+    corners = spread_out_corners(im, 7, 7, 12, harris_corner_detector)
+    corners_level3 = corners / 4
+    descriptions = feature_descriptor(pyramid[2], corners_level3, 3)
+    return [corners, descriptions]
 
 def match_features(desc1, desc2, min_score):
     """
