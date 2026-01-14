@@ -5,6 +5,8 @@ from scipy.signal import convolve2d
 from scipy.ndimage import map_coordinates
 
 from utils import *
+import numpy as np
+
 
 def harris_corner_detector(im):
     """
@@ -12,7 +14,36 @@ def harris_corner_detector(im):
     :param im: A 2D array representing a grayscale image.
     :return: An array with shape (N,2), where its ith entry is the [x,y] coordinates of the ith corner point.
     """
-    pass
+    im = im.astype(np.float64)
+    vec_x = np.array([[1, 0, -1]], dtype=np.float64)
+    vec_y = np.array([[1], [0], [-1]], dtype=np.float64)
+
+    Ix = convolve2d(im, vec_x, mode='same', boundary='symm')
+    Iy = convolve2d(im, vec_y, mode='same', boundary='symm')
+
+    IxIy = np.multiply(Ix, Iy)
+    IyIx = np.multiply(Iy, Ix)
+    IyIy = np.multiply(Iy, Iy)
+    IxIx = np.multiply(Ix, Ix)
+    
+    IxIy_blured = blur_spatial(IxIy, 3)
+    IyIx_blured = blur_spatial(IyIx, 3)
+    IyIy_blured = blur_spatial(IyIy, 3)
+    IxIx_blured = blur_spatial(IxIx, 3)
+
+    det_M = IxIx_blured * IyIy_blured - IxIy_blured * IyIx_blured
+    trace_M = IxIx_blured + IyIy_blured
+
+    alpha = 0.04
+    R_image = det_M - alpha * (trace_M ** 2)
+    R_image[R_image < 0] = 0
+
+    bool_image_max = non_maximum_suppression(R_image)
+    ys, xs = np.nonzero(bool_image_max)
+    points = np.stack([xs, ys], axis=1)
+    visualize_points(im, points)
+    return points
+
 
 def feature_descriptor(im, points, desc_rad=3):
     """
@@ -69,6 +100,7 @@ def ransac_homography(points1, points2, num_iter, inlier_tol, translation_only=F
                 2) An Array with shape (S,) where S is the number of inliers,
                     containing the indices in pos1/pos2 of the maximal set of inlier matches found.
     """
+    
     pass
 
 def display_matches(im1, im2, points1, points2, inliers):
@@ -248,6 +280,10 @@ if __name__ == "__main__":
     image1 = read_image(f"dump/{video_name_base}/{video_name_base}200.jpg", 1)
     image2 = read_image(f"dump/{video_name_base}/{video_name_base}300.jpg", 1)
 
+    harris_corner_detector(image1)
+    #points = spread_out_corners(image1, 7,7,12, harris_corner_detector)
+    #visualize_points(image1, points)
+"""
     # Extract feature points and descriptors
     points1, desc1 = find_features(image1)
     points2, desc2 = find_features(image2)
@@ -278,3 +314,5 @@ if __name__ == "__main__":
     print("\nGenerating panoramic images...")
     generate_panoramic_images(f"dump/{video_name_base}/", video_name_base,
                               num_images=num_images, out_dir=f"out/{video_name_base}", number_of_panoramas=3)
+
+"""
