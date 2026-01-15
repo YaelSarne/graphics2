@@ -57,17 +57,21 @@ def feature_descriptor(im, points, desc_rad=3):
     patches = []
     axis = np.arange(-desc_rad, desc_rad + 1)
     dx, dy = np.meshgrid(axis, axis)
-    for point in points:
-        x_cords = dx + point[0]
-        y_cords = dy + point[1]
-        curr_patch = map_coordinates(im, [y_cords.ravel(), x_cords.ravel()])
-        mean = np.mean(curr_patch)
-        curr_patch = curr_patch - mean
-        norm = np.linalg.norm(curr_patch)
-        if norm:
-            curr_patch = curr_patch / norm
-        curr_patch = np.reshape(curr_patch, (7, 7))
-        patches.append(curr_patch)
+    dx_flat = dx.ravel()
+    dy_flat = dy.ravel()
+    x_coords = points[:, 0][:, np.newaxis] + dx_flat[np.newaxis, :]
+    y_coords = points[:, 1][:, np.newaxis] + dy_flat[np.newaxis, :]
+    coords_to_map = np.stack([y_coords.ravel(), x_coords.ravel()])
+    sampled = map_coordinates(im, coords_to_map, order=1, mode='constant', cval=0.0)
+
+    patches = sampled.reshape(points.shape[0], 2 * desc_rad + 1, 2 * desc_rad + 1)
+    patches = patches - np.mean(patches, axis=(1, 2), keepdims=True)
+
+    flat_patches = patches.reshape(points.shape[0], -1)
+    norms = np.linalg.norm(flat_patches, axis=1)
+    norms[norms == 0] = 1
+
+    patches = patches / norms[:, np.newaxis, np.newaxis]
     return patches
 
 
@@ -185,10 +189,8 @@ def display_matches(im1, im2, points1, points2, inliers):
     x1, y1 = points1[:, 0], points1[:, 1]
     x2, y2 = points2[:, 0] + width_im1, points2[:, 1]
     for i in range(len(points1)):
-        # color = 'b' if i in inliers else 'y'
-        # plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color=color, lw=0.6, alpha=0.5)
-        if i in inliers:
-            plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color='b', lw=0.6, alpha=0.5)
+        color = 'b' if i in inliers else 'y'
+        plt.plot([x1[i], x2[i]], [y1[i], y2[i]], color=color, lw=0.6, alpha=0.5)
     plt.scatter(x1, y1, c='r', s=5)
     plt.scatter(x2, y2, c='r', s=5)
     plt.axis('off') 
@@ -208,7 +210,16 @@ def accumulate_homographies(H_successive, m):
     :return: A list of M 3x3 homography matrices,
       where H2m[i] transforms points from coordinate system i to coordinate system m
     """
-    pass
+    H2m = [None] * (len(H_successive) + 1)
+    H2m[m] = np.eye(3)
+    for i in range(m - 1, -1, -1):
+        curr_mat = H2m[i+1] @ H_successive[i]
+        H2m[i] = curr_mat / curr_mat[2, 2]
+    for i in range(m + 1, len(H_successive) + 1):
+        h_inv = np.linalg.inv(H_successive[i-1])
+        curr_mat = H2m[i-1] @ h_inv
+        H2m[i] = curr_mat / curr_mat[2, 2]
+    return H2m
 
 
 def compute_bounding_box(homography, w, h):
@@ -237,8 +248,8 @@ def warp_channel(image, homography):
     """
     h, w = image.shape
     (min_x, min_y), (max_x, max_y) = compute_bounding_box(homography, w, h)
-    x = np.arange(np.floor(min_x), np.ceil(max_x)+1)
-    y = np.arange(np.floor(min_y), np.ceil(max_y)+1)
+    x = np.arange(np.floor(min_x), np.floor(max_x) + 1)
+    y = np.arange(np.floor(min_y), np.floor(max_y) + 1)
     X, Y = np.meshgrid(x,y)
 
     H_inv = np.linalg.inv(homography)
@@ -264,6 +275,7 @@ def warp_image(image, homography):
         warped_c = warp_channel(image[:, :, c], homography)
         warped_channels.append(warped_c)
     warped_image = np.stack(warped_channels, axis=2)
+    warped_image = np.clip(warped_image, 0, 1)
     return warped_image
 
 
@@ -376,6 +388,8 @@ def generate_panoramic_images(data_dir, file_prefix, num_images, out_dir, number
 if __name__ == "__main__":
     import ffmpeg
     video_name = "mt_cook.mp4"
+    #video_name = "peyto_lake.mp4"
+    #video_name = "sapa.mp4"
     video_name_base = video_name.split('.')[0]
     os.makedirs(f"dump/{video_name_base}", exist_ok=True)
     ffmpeg.input(f"videos/{video_name}").output(f"dump/{video_name_base}/{video_name_base}%03d.jpg").run()
@@ -414,6 +428,6 @@ if __name__ == "__main__":
     display_matches(image1, image2, matched_points1, matched_points2, inliers)
 
     # Generate panoramic images
-    #print("\nGenerating panoramic images...")
-    #generate_panoramic_images(f"dump/{video_name_base}/", video_name_base,
-    #                          num_images=num_images, out_dir=f"out/{video_name_base}", number_of_panoramas=3)
+    print("\nGenerating panoramic images...")
+    generate_panoramic_images(f"dump/{video_name_base}/", video_name_base,
+                              num_images=num_images, out_dir=f"out/{video_name_base}", number_of_panoramas=3)
