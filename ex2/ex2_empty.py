@@ -210,16 +210,7 @@ def accumulate_homographies(H_successive, m):
     :return: A list of M 3x3 homography matrices,
       where H2m[i] transforms points from coordinate system i to coordinate system m
     """
-    H2m = [None] * (len(H_successive) + 1)
-    H2m[m] = np.eye(3)
-    for i in range(m - 1, -1, -1):
-        curr_mat = H2m[i+1] @ H_successive[i]
-        H2m[i] = curr_mat / curr_mat[2, 2]
-    for i in range(m + 1, len(H_successive) + 1):
-        h_inv = np.linalg.inv(H_successive[i-1])
-        curr_mat = H2m[i-1] @ h_inv
-        H2m[i] = curr_mat / curr_mat[2, 2]
-    return H2m
+    pass
 
 
 def compute_bounding_box(homography, w, h):
